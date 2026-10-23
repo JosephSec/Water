@@ -1,34 +1,26 @@
 #include <System.hpp>
-#include <User.hpp>
-#include <Renderer.hpp>
-#include <UI.hpp>
 
-#include <filesystem>
+#include <SFML/System/Time.hpp>
+
 #include <windows.h>
+#include <filesystem>
+
+#include <Renderer/Core/Shader.hpp>
 
 
-string System::PATH;
+std::string System::PATH;
 
 sf::Clock System::timeClock;
 float System::deltaTime;
 
-std::vector<string> System::assets;
-
 
 void System::init() {
-  char buffer[MAX_PATH]; GetModuleFileNameA(NULL, buffer, MAX_PATH);
+  char buffer[MAX_PATH];
+  GetModuleFileNameA(NULL, buffer, MAX_PATH);
   PATH = std::filesystem::path(buffer).parent_path().parent_path().string();
 
-  Renderer::init();
-
-  UI::Manager::init(PATH, Renderer::window, true);
-
-  GenerateReleaseAssets();
+  Renderer::Shader::SetShaderFolder(std::filesystem::path(PATH+"/assets/shaders"));
 }
 void System::update() {
-  deltaTime = timeClock.restart().asMilliseconds() * .001f;
-
-  User::update();
-  Renderer::update();
-  UI::Manager::update();
+  deltaTime = timeClock.restart().asSeconds();
 }

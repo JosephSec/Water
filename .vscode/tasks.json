@@ -2,28 +2,125 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "CompileExe",
+      "label": "Compile Exe (CPP)",
       "type": "shell",
       "command": "g++",
       "args": [
-        "-O3", "-flto",
-
         "-I${workspaceFolder}/include",
+        "${workspaceFolder}/src/*.cpp",
 
+        "-O3", "-std=c++23",
         "-o", "${workspaceFolder}/build/program.exe",
 
-        "${workspaceFolder}/src/*.cpp",
-        // "${workspaceFolder}/src/System/*.cpp",
         "${workspaceFolder}/src/Renderer/*.cpp",
-
-        "-Llibs", "-lUI", "-lPerlinGen",
-        "-lsfml-graphics", "-lsfml-window", "-lsfml-system", "-lglew32", "-lopengl32"
+        "${workspaceFolder}/src/Renderer/Core/*.cpp",
+        "${workspaceFolder}/src/Renderer/Debug/*.cpp",
+        "${workspaceFolder}/src/Renderer/Hardware/*.cpp",
+        
+        // "${workspaceFolder}/src/Editor/*.cpp",
+        "${workspaceFolder}/src/Editor/UI/*.cpp",
+        
+        "-lsfml-graphics", "-lsfml-window", "-lsfml-system",
+        "-lglew32", "-lopengl32",
+        "-ldxgi"
       ]
     },
     {
-      "label": "Release",
+      "label": "Compile Exe (DLL)",
       "type": "shell",
-      "command": "${workspaceFolder}/assets/Release.bat",
+      "command": "g++",
+      "args": [
+        "-DRENDER3D_DLL",
+
+        "-I${workspaceFolder}/include",
+        "${workspaceFolder}/src/*.cpp",
+
+        "-O3", "-std=c++23",
+        "-o", "${workspaceFolder}/build/program.exe",
+
+        "${workspaceFolder}/bin/render3d.dll",
+        
+        // "${workspaceFolder}/src/Editor/*.cpp",
+        "${workspaceFolder}/src/Editor/UI/*.cpp",
+        
+        "-lsfml-graphics", "-lsfml-window", "-lsfml-system",
+        "-lglew32", "-lopengl32",
+        "-ldxgi"
+      ],
+      "dependsOn": ["Compile DLL"]
+    },
+    {
+      "label": "Compile Exe (DLL-Skip)",
+      "type": "shell",
+      "command": "g++",
+      "args": [
+        "-DRENDER3D_DLL",
+
+        "-I${workspaceFolder}/include",
+        "${workspaceFolder}/src/*.cpp",
+        
+        "-O3", "-std=c++23",
+        "-o", "${workspaceFolder}/build/program.exe",
+        
+        "${workspaceFolder}/bin/render3d.dll",
+        
+        // "${workspaceFolder}/src/Editor/*.cpp",
+        "${workspaceFolder}/src/Editor/UI/*.cpp",
+        
+        "-lsfml-graphics", "-lsfml-window", "-lsfml-system",
+        "-lglew32", "-lopengl32",
+      ],
+    },
+    {
+      "label": "Compile DLL",
+      "type": "shell",
+      "command": "g++",
+      "args": [
+        "-DRENDER3D_DLL_BUILD",
+
+        "-I${workspaceFolder}/include",
+        
+        "-O3", "-std=c++23",
+        "-shared", "-o", "${workspaceFolder}/bin/render3d.dll",
+
+        "${workspaceFolder}/src/Renderer/*.cpp",
+        "${workspaceFolder}/src/Renderer/Core/*.cpp",
+        "${workspaceFolder}/src/Renderer/Debug/*.cpp",
+        "${workspaceFolder}/src/Renderer/Hardware/*.cpp",
+        // "${workspaceFolder}/src/Renderer/Component/*.cpp",
+        
+        "-lsfml-graphics", "-lsfml-window", "-lsfml-system",
+        "-lglew32", "-lopengl32",
+        "-ldxgi"
+      ],
+    },
+    {
+      "label": "Compile Exe (Static)",
+      "type": "shell",
+      "command": "g++",
+      "args": [
+        "-DSFML_STATIC", "-DGLEW_STATIC",
+
+        "-I${workspaceFolder}/include",
+        "${workspaceFolder}/src/*.cpp",
+
+        "-O3", "-std=c++23",
+        "-static",
+        "-o", "${workspaceFolder}/build/program.exe",
+
+        "${workspaceFolder}/src/Renderer/*.cpp",
+        "${workspaceFolder}/src/Renderer/Core/*.cpp",
+        "${workspaceFolder}/src/Renderer/Debug/*.cpp",
+        "${workspaceFolder}/src/Renderer/Hardware/*.cpp",
+        // "${workspaceFolder}/src/Renderer/Component/*.cpp",
+        
+        // "${workspaceFolder}/src/Editor/*.cpp",
+        "${workspaceFolder}/src/Editor/UI/*.cpp",
+        
+        "-lsfml-graphics-s", "-lsfml-window-s", "-lsfml-system-s",
+        "-lglew32", "-lopengl32", "-lfreetype", "-lwinmm", "-lgdi32",
+        "-ldxgi"
+      ]
     },
     {
       "label": "Import Tool",

@@ -1,5 +1,0 @@
-Roboto.ttf
-shaders/Triangle.vert
-shaders/Triangle.frag
-shaders/Line.vert
-shaders/Line.frag

@@ -52,7 +52,20 @@
     "streambuf": "cpp",
     "text_encoding": "cpp",
     "typeinfo": "cpp",
-    "variant": "cpp"
+    "variant": "cpp",
+    "chrono": "cpp",
+    "codecvt": "cpp",
+    "cstdarg": "cpp",
+    "cstring": "cpp",
+    "ratio": "cpp",
+    "iomanip": "cpp",
+    "queue": "cpp",
+    "ranges": "cpp",
+    "sstream": "cpp",
+    "cinttypes": "cpp",
+    "any": "cpp",
+    "forward_list": "cpp",
+    "valarray": "cpp"
   },
   "editor.tabSize": 2
 }
