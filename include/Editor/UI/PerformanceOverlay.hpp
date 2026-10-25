@@ -3,7 +3,7 @@
 #include <SFML/Graphics/Rect.hpp>
 #include <SFML/Graphics/Font.hpp>
 
-#include <Renderer/Debug/Graph.hpp>
+#include <Editor/UI/Graph.hpp>
 
 
 namespace Editor {
@@ -14,9 +14,9 @@ namespace Editor {
 
       static sf::FloatRect Rect;
 
-      static Renderer::LineGraph fpsGraph;
-      static Renderer::LineGraph vramGraph;
-      static Renderer::LineGraph testGraph;
+      static Editor::UI::LineGraph fpsGraph;
+      static Editor::UI::LineGraph vramGraph;
+      static Editor::UI::LineGraph performanceGraph;
 
 
       static void init();

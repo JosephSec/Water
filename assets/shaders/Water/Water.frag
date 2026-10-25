@@ -54,9 +54,7 @@ uniform float uAmplitudeScale;
 uniform float uMeshSpacing;
 uniform float uFoamThreshold;
 uniform float uFoamIntensity;
-uniform sampler2D uSceneColor;
-uniform sampler2D uSceneDepth;
-uniform bool uHasSceneTex;
+uniform samplerCube uSky;
 
 // 1 = shade in linear light, tonemap + gamma at the end, decode uSceneColor from display space.
 // 0 = leave everything linear (use if your pipeline tonemaps later and uSceneColor is linear HDR).
@@ -131,12 +129,8 @@ float linearizeDepth(float d) {                  // standard OpenGL perspective,
   return uProj[3][2] / (ndc + uProj[2][2]);
 }
 
-vec3 skyColor(vec3 dir, vec3 L) {
-  vec3  horizon = toLinear(uFogColor.rgb);
-  vec3  tint    = uSunColor / max(max(uSunColor.r, uSunColor.g), max(uSunColor.b, 1e-4));
-  vec3  col     = mix(horizon, ZENITH_COLOR, pow(saturate(dir.y), 0.4));
-  float sd      = saturate(dot(dir, L));
-  return col + tint * (0.35 * pow(sd, 8.0) + 1.2 * pow(sd, 150.0));   // broad glow (the sun itself is the GGX highlight)
+vec3 skyColor(vec3 dir) {
+  return toLinear(textureLod(uSky, dir, 0.0).rgb);   // PNG/JPG faces are display-space
 }
 
 vec3 acesFilm(vec3 x) {                          // Narkowicz ACES fit
@@ -213,8 +207,11 @@ void main() {
   // ---- reflections --------------------------------------------------------------
   vec3 R = reflect(-V, N);
   R.y = max(R.y, 0.0);
-  vec3 skyRefl = skyColor(normalize(R), L);
-  vec3 skyAmb  = mix(toLinear(uFogColor.rgb), ZENITH_COLOR, 0.5);
+  vec3 skyRefl = skyColor(normalize(R));
+  // Ambient: a blurry top-mip sample (needs mips; falls back to level 0 otherwise)
+  float amb = float(max(textureQueryLevels(uSky) - 1, 0));
+  vec3 skyAmb = toLinear(0.5 * (textureLod(uSky, vec3(0, 1, 0), amb).rgb
+                              + textureLod(uSky, vec3(1, 0.1, 0), amb).rgb));
 
   vec3  H  = normalize(L + V);
   float NH = saturate(dot(N, H));
@@ -236,26 +233,6 @@ void main() {
   // ---- refraction / depth tint / shoreline ------------------------------------------
   vec3  transmitted = body;
   float shore = 0.0;
-  if (uHasSceneTex) {
-    vec2  uv    = gl_FragCoord.xy / vec2(textureSize(uSceneDepth, 0));
-    float surfZ = linearizeDepth(gl_FragCoord.z);
-
-    // Only the tilt away from flat water should shift the image.
-    vec2 off = (mat3(uView) * N).xy - (mat3(uView) * vec3(0.0, 1.0, 0.0)).xy;
-    vec2 ruv = clamp(uv + off * REFRACTION_STRENGTH / (1.0 + 0.05 * surfZ), vec2(0.001), vec2(0.999));
-
-    float d = texture(uSceneDepth, ruv).r;
-    if (linearizeDepth(d) < surfZ) {             // refracted ray landed on something in front of the water
-      ruv = uv;
-      d   = texture(uSceneDepth, uv).r;
-    }
-    float thick = (d >= 0.99999) ? 1000.0 : max(linearizeDepth(d) - surfZ, 0.0);
-
-    vec3 sceneCol = toLinear(texture(uSceneColor, ruv).rgb);
-    vec3 trans    = exp(-ABSORPTION * thick);
-    transmitted   = mix(body, sceneCol, trans);
-    shore         = 1.0 - smoothstep(0.0, 1.2, thick);
-  }
   transmitted += sss;
 
   // ---- foam ----------------------------------------------------------------------------
@@ -276,8 +253,9 @@ void main() {
   col = pow(col, vec3(1.0 / 2.2));
 #endif
 
+  vec3 fogCol = textureLod(uSky, normalize(vec3(-V.x, 0.02, -V.z)), 2.0).rgb;  // display space
   float fogAmt = 1.0 - exp(-pow(dist * uFogDensity * 0.01, 2.0));
-  col = mix(col, uFogColor.rgb, fogAmt);
+  col = mix(col, fogCol, fogAmt);
 
   FragColor = vec4(col, 1.0);
 }

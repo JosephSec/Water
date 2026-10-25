@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
@@ -18,6 +19,7 @@ namespace Renderer {
     public:
       glm::vec3 position;
       glm::vec4 color;
+      glm::vec2 uv;
     };
 
     using Index = uint32_t;
@@ -41,13 +43,13 @@ namespace Renderer {
     void draw() const noexcept;
 
 
-    void setVertices(std::vector<Vertex> &&_vertices, GLenum _usage = GL_DYNAMIC_DRAW) noexcept;
-    void setIndices(std::vector<Index> &&_indices, GLenum _usage = GL_DYNAMIC_DRAW) noexcept;
+    void setVertices(std::vector<Vertex> &&_vertices, GLenum _usage = GL_DYNAMIC_DRAW, bool _saveCPUSide = true) noexcept;
+    void setIndices(std::vector<Index> &&_indices, GLenum _usage = GL_DYNAMIC_DRAW, bool _saveCPUSide = true) noexcept;
 
-    inline void setVertices(std::vector<Vertex> &_vertices, GLenum _usage = GL_DYNAMIC_DRAW) noexcept {
+    inline void setVertices(std::vector<Vertex> &_vertices, GLenum _usage = GL_DYNAMIC_DRAW, bool _saveCPUSide = true) noexcept {
       setVertices(std::move(_vertices), _usage);
     }
-    inline void setIndices(std::vector<Index> &_indices, GLenum _usage = GL_DYNAMIC_DRAW) noexcept {
+    inline void setIndices(std::vector<Index> &_indices, GLenum _usage = GL_DYNAMIC_DRAW, bool _saveCPUSide = true) noexcept {
       setIndices(std::move(_indices), _usage);
     }
 
@@ -60,6 +62,7 @@ namespace Renderer {
   private:
     std::vector<Vertex> m_vertices;
     std::vector<Index> m_indices;
+    GLsizeiptr m_indexCount = 0;
 
     GLuint m_vao = 0;
     GPUBuffer m_vbo;

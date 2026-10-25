@@ -34,11 +34,11 @@ namespace Renderer {
     explicit Shader(const std::string &_name);
     ~Shader();
 
-    Shader(const Shader&) = delete;
-    Shader operator=(const Shader&) = delete;
-
     Shader(Shader &&_o) noexcept;
     Shader &operator=(Shader &&_o) noexcept;
+
+    Shader(const Shader&) = delete;
+    Shader &operator=(const Shader&) = delete;
 
 
     void use() const noexcept;

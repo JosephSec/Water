@@ -4,13 +4,13 @@
 #include <Renderer/Core.hpp>
 #include <Renderer/Core/Shader.hpp>
 #include <Renderer/Core/Mesh.hpp>
+#include <Renderer/Core/Texture.hpp>
+#include <Renderer/Core/Skybox.hpp>
 #include <Renderer/Component/Camera.hpp>
-#include <Renderer/Debug/Graph.hpp>
 #include <Renderer/Hardware/GPU.hpp>
 #include <Renderer/Hardware/Monitor.hpp>
 
 #include <Editor/UI/PerformanceOverlay.hpp>
-#include <Editor/UI/Button.hpp>
 
 #include <random>
 #include <chrono>
@@ -18,63 +18,24 @@
 #include <iostream>
 
 
-namespace Renderer {
-  struct MeshRenderer {
-  public:
-    MeshRenderer(Mesh *_mesh, Shader *_shader) : m_mesh(_mesh), m_shader(_shader) {}
-
-    void draw(const glm::mat4x4 &_model) const {
-      m_shader->use();
-      m_shader->setUniform("uModel", _model);
-
-      m_mesh->use();
-      m_mesh->draw();
-    }
-    inline void draw(const Transform &_transform) const {
-      draw(_transform.getModelMatrix());
-    }
-
-
-    Mesh *m_mesh;
-    Shader *m_shader;
-  };
-}
-
-static GLuint fbo, vao, colorTex, depthTex;
+static GLuint fbo, vao;
+static Renderer::Texture colorTex, depthTex;
 static glm::ivec2 postSize;
 static void resizePost(const glm::ivec2 _size) {
   postSize = _size;
 
-  { //Color
-    glCreateTextures(GL_TEXTURE_2D, 1, &colorTex);
-    glTextureStorage2D(colorTex, 1, GL_RGBA8, postSize.x,postSize.y);
+  colorTex = Renderer::Texture(postSize, GL_RGBA8, 1);
+  depthTex = Renderer::Texture(postSize, GL_DEPTH_COMPONENT24, 1);
 
-    glTextureParameteri(colorTex, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTextureParameteri(colorTex, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    glTextureParameteri(colorTex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTextureParameteri(colorTex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  } //Color
-  { //Depth
-    glCreateTextures(GL_TEXTURE_2D, 1, &depthTex);
-    glTextureStorage2D(depthTex, 1, GL_DEPTH_COMPONENT24, postSize.x,postSize.y);
-
-    glTextureParameteri(depthTex, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTextureParameteri(depthTex, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    glTextureParameteri(depthTex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTextureParameteri(depthTex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  } //Depth
-
-  glNamedFramebufferTexture(fbo, GL_COLOR_ATTACHMENT0, colorTex, 0);
-  glNamedFramebufferTexture(fbo, GL_DEPTH_ATTACHMENT,  depthTex, 0);
+  glNamedFramebufferTexture(fbo, GL_COLOR_ATTACHMENT0, colorTex.getID(), 0);
+  glNamedFramebufferTexture(fbo, GL_DEPTH_ATTACHMENT,  depthTex.getID(), 0);
   if(glCheckNamedFramebufferStatus(fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
     std::cout << "[POST PROCESS ERROR]: Post process framebuffer is incomplete\n";
   }
 }
 static void initPost(const glm::ivec2 _size) {
-  glGenFramebuffers(1, &fbo);
-  glGenVertexArrays(1, &vao);
+  glCreateFramebuffers(1, &fbo);
+  glCreateVertexArrays(1, &vao);
   
   resizePost(_size);
 }
@@ -89,8 +50,8 @@ static void endPost(Renderer::Shader *_shader, Renderer::Camera *_camera, float 
   glViewport(0,0, Renderer::Core::windowSize.x, Renderer::Core::windowSize.y);
   glDisable(GL_DEPTH_TEST);
 
-  glBindTextureUnit(1, colorTex);
-  glBindTextureUnit(2, depthTex);
+  colorTex.bindUnit(1);
+  depthTex.bindUnit(2);
 
   _shader->use();
   _shader->setUniform("uColor", 1);
@@ -106,6 +67,8 @@ static void endPost(Renderer::Shader *_shader, Renderer::Camera *_camera, float 
 }
 
 
+static Renderer::Skybox skybox;
+
 static bool wireframeMode = false;
 static bool paused = false;
 static bool doPost = false;
@@ -120,36 +83,54 @@ int main(int argc, char *argv[]) {
 
   Renderer::Shader unlitShader("Unlit");
   Renderer::Shader postShader("PostProcess");
+  Renderer::Shader skyboxShader("Skybox");
   Renderer::Shader waterShader("Water");
 
   Renderer::Camera *camera = new Renderer::Camera();
-  camera->farPlane = 10000;
+  camera->farPlane = 100000;
 
+  skybox();
+  skybox.loadFromFolder(System::PATH+"/assets/skyboxs/StormyNight");
+
+
+  glm::ivec2 size;
+  float spacing = 0;
+  static glm::vec3 sunDir = glm::vec3{1,.08f,-1};
+  
+  { //Get Water Params
+    std::string str;
+    std::cout << "Enter Water Size: ";
+    std::getline(std::cin, str);
+    size = glm::ivec2(std::stoi(str));
+
+    std::cout << "Enter Water Spacing: ";
+    std::getline(std::cin, str);
+    spacing = std::stof(str);
+
+    system("cls");
+  } //Get Water Params
 
   Renderer::Mesh water; {
     water();
 
-    const glm::ivec2 grid = glm::ivec2{300,300};
-    const float scale = .5f;
-
-    std::vector<Renderer::Mesh::Vertex> vertices((grid.x + 1) * (grid.y + 1));
-    for(int y = 0; y <= grid.y; y++) {
-      for(int x = 0; x <= grid.x; x++) {
-        vertices[x + y * (grid.x + 1)] = Renderer::Mesh::Vertex{
-          glm::vec3{x - static_cast<float>(grid.x + 1) / 2.0f, 0, -(y - static_cast<float>(grid.y + 1) / 2.0f)} * scale,
+    std::vector<Renderer::Mesh::Vertex> vertices((size.x + 1) * (size.y + 1));
+    for(int y = 0; y <= size.y; y++) {
+      for(int x = 0; x <= size.x; x++) {
+        vertices[x + y * (size.x + 1)] = Renderer::Mesh::Vertex{
+          glm::vec3{x - static_cast<float>(size.x + 1) / 2.0f, 0, -(y - static_cast<float>(size.y + 1) / 2.0f)} * spacing,
           {0,0,1,1},
         };
       }
     }
-    water.setVertices(vertices);
+    water.setVertices(vertices, GL_STATIC_DRAW, false);
 
-    std::vector<Renderer::Mesh::Index> indices(grid.x * grid.y * 6);
-    for(int y = 0; y < grid.y; y++) {
-      for(int x = 0; x < grid.x; x++) {
-        const uint64_t start = (static_cast<uint64_t>(x) + static_cast<uint64_t>(y) * grid.x) * 6;
+    std::vector<Renderer::Mesh::Index> indices(size.x * size.y * 6);
+    for(int y = 0; y < size.y; y++) {
+      for(int x = 0; x < size.x; x++) {
+        const uint64_t start = (static_cast<uint64_t>(x) + static_cast<uint64_t>(y) * size.x) * 6;
 
-        const Renderer::Mesh::Index a = x + y * (grid.x + 1);
-        const Renderer::Mesh::Index b = a + grid.x + 1;
+        const Renderer::Mesh::Index a = x + y * (size.x + 1);
+        const Renderer::Mesh::Index b = a + size.x + 1;
         const Renderer::Mesh::Index c = b + 1;
         const Renderer::Mesh::Index d = a + 1;
 
@@ -162,35 +143,7 @@ int main(int argc, char *argv[]) {
         indices[start + 5] = d;
       }
     }
-    water.setIndices(indices);
-  }
-  Renderer::Mesh cube; {
-    cube();
-    
-    std::vector<Renderer::Mesh::Vertex> vertices = {
-      Renderer::Mesh::Vertex{{-1,-1, 1}, {1,0,0,1}},
-      Renderer::Mesh::Vertex{{-1, 1, 1}, {0,1,0,1}},
-      Renderer::Mesh::Vertex{{ 1, 1, 1}, {0,0,1,1}},
-      Renderer::Mesh::Vertex{{ 1,-1, 1}, {1,1,1,1}},
-      
-      Renderer::Mesh::Vertex{{-1,-1,-1}, {1,0,0,1}},
-      Renderer::Mesh::Vertex{{-1, 1,-1}, {0,1,0,1}},
-      Renderer::Mesh::Vertex{{ 1, 1,-1}, {0,0,1,1}},
-      Renderer::Mesh::Vertex{{ 1,-1,-1}, {1,1,1,1}},
-    };
-    std::vector<Renderer::Mesh::Index> indices = {
-      0,4,5, 0,5,1, //-x
-      6,7,3, 6,3,2, //+x
-
-      0,3,7, 0,7,4, //-y
-      1,5,6, 1,6,2, //+y
-
-      7,6,5, 7,5,4, //-z
-      0,1,2, 0,2,3, //+z
-    };
-
-    cube.setVertices(vertices);
-    cube.setIndices(indices);
+    water.setIndices(indices, GL_STATIC_DRAW, false);
   }
 
 
@@ -217,6 +170,12 @@ int main(int argc, char *argv[]) {
           glPolygonMode(GL_FRONT_AND_BACK, wireframeMode? GL_LINE : GL_FILL);
         }
         else if(keyPressed->code == sf::Keyboard::Key::F3) doPost = !doPost;
+
+        else if(keyPressed->code == sf::Keyboard::Key::X) {
+          std::stringstream ss;
+          ss << std::format("Sun Direction: ({}, {}, {})", sunDir.x,sunDir.y,sunDir.z) << '\n';
+          std::cout << ss.str();
+        }
       }
       else if(const auto *mouseButtonPressed = event.getIf<sf::Event::MouseButtonPressed>()) User::HandleMouseButtonPressed(mouseButtonPressed);
       else if(const auto *mouseButtonReleased = event.getIf<sf::Event::MouseButtonReleased>()) User::HandleMouseButtonReleased(mouseButtonReleased);
@@ -224,6 +183,7 @@ int main(int argc, char *argv[]) {
 
     static float t = 0;
     if(paused == false) t += System::deltaTime;
+    // sunDir = glm::vec3{glm::cos(t), .6f, glm::sin(t)};
 
     { //Update
       System::update();
@@ -282,6 +242,9 @@ int main(int argc, char *argv[]) {
       postShader.use();
       postShader.setUniform("uProj", projMat);
       postShader.setUniform("uView", viewMat);
+      skyboxShader.use();
+      skyboxShader.setUniform("uProj", projMat);
+      skyboxShader.setUniform("uView", viewMat);
 
       User::update();
     } //Update
@@ -304,34 +267,33 @@ int main(int argc, char *argv[]) {
         } //GL Init
 
         if(doPost) beginPost();
+        skybox.draw(&skyboxShader, camera);
         { //Water
           waterShader.use();
           waterShader.setUniform("uModel", Renderer::Transform({0,-3,0}).getModelMatrix());
 
           waterShader.setUniform("uCamPos", camera->transform.position);
-          waterShader.setUniform("uSunDir", glm::normalize(glm::vec3{1,1,-1}));
-          waterShader.setUniform("uSunColor", glm::vec3{1.0f, 0.98f, 0.93f});
+          waterShader.setUniform("uSunDir", glm::normalize(sunDir));
+          waterShader.setUniform("uSunColor", glm::vec3{.75f, .82f, 1.0f} * 1.5f);
 
-          waterShader.setUniform("uChoppiness", 3.5f);
-          waterShader.setUniform("uAmplitudeScale", 4.0f);
+          // Wave shape
+          waterShader.setUniform("uWindSpeed", 30.0f);       // shader clamps to 2..30, so 200 was acting as 30
+          waterShader.setUniform("uAmplitudeScale", 3.5f);   // the real "wave height" knob, linear multiplier
+          waterShader.setUniform("uChoppiness", 2.2f);       // sharper crests, pinched troughs
+          waterShader.setUniform("uWindDir", glm::vec2{1,0.6f});
 
-          waterShader.setUniform("uFoamThreshold", 1.0f);
-          waterShader.setUniform("uFoamIntensity", 1.0f);
+          // Whitecaps
+          waterShader.setUniform("uFoamThreshold", .45f);    // lower = more foam
+          waterShader.setUniform("uFoamIntensity", 1.3f);
 
           waterShader.setUniform("uFogColor", glm::vec4{.68f,.74f,.78f,1});
-          waterShader.setUniform("uFogDensity", .3f);
+          waterShader.setUniform("uFogDensity", .1f);
 
-          waterShader.setUniform("uWindDir", glm::vec2{1,0});
-          waterShader.setUniform("uWindSpeed", 55.0f);
-
-          waterShader.setUniform("uMeshSpacing", 0.5f);
-
-          waterShader.setUniform("uSceneColor", 1);
-          waterShader.setUniform("uSceneDepth", 2);
-          waterShader.setUniform("uHasSceneTex", false);
-
+          waterShader.setUniform("uMeshSpacing", spacing);
+          waterShader.setUniform("uSky", 1);
           waterShader.setUniform("uTime", t);
 
+          skybox.bindUnit(1);
 
           water.use();
           water.draw();

@@ -8,16 +8,13 @@ Mesh::~Mesh() {
 }
 
 Mesh::Mesh(Mesh &&_o) {
-  if(this != &_o) {
-    
+  m_vertices = std::move(_o.m_vertices);
+  m_indices = std::move(_o.m_indices);
+  m_indexCount = std::exchange(_o.m_indexCount, 0);
 
-    m_vertices = std::move(_o.m_vertices);
-    m_indices = std::move(_o.m_indices);
-
-    m_vao = std::exchange(_o.m_vao, 0);
-    m_vbo = std::move(m_vbo);
-    m_ebo = std::move(m_ebo);
-  }
+  m_vao = std::exchange(_o.m_vao, 0);
+  m_vbo = std::move(_o.m_vbo);
+  m_ebo = std::move(_o.m_ebo);
 }
 
 
@@ -46,15 +43,16 @@ void Mesh::use() const noexcept {
   glBindVertexArray(m_vao);
 }
 void Mesh::draw() const noexcept {
-  glDrawElements(GL_TRIANGLES, m_indices.size(), GL_INDEX_TYPE, nullptr);
+  glDrawElements(GL_TRIANGLES, m_indexCount, GL_INDEX_TYPE, nullptr);
 }
 
 
-void Mesh::setVertices(std::vector<Vertex> &&_vertices, GLenum _usage) noexcept {
-  m_vertices = std::move(_vertices);
-  m_vbo.upload(m_vertices.size() * sizeof(Vertex), m_vertices.data(), _usage);
+void Mesh::setVertices(std::vector<Vertex> &&_vertices, GLenum _usage, bool _saveCPUSide) noexcept {
+  m_vbo.upload(_vertices.size() * sizeof(Vertex), _vertices.data(), _usage);
+  if(_saveCPUSide == true) m_vertices = std::move(_vertices);
 }
-void Mesh::setIndices(std::vector<Index> &&_indices, GLenum _usage) noexcept {
-  m_indices = std::move(_indices);
-  m_ebo.upload(m_indices.size() * sizeof(Index), m_indices.data(), _usage);
+void Mesh::setIndices(std::vector<Index> &&_indices, GLenum _usage, bool _saveCPUSide) noexcept {
+  m_indexCount = _indices.size();
+  m_ebo.upload(_indices.size() * sizeof(Index), _indices.data(), _usage);
+  if(_saveCPUSide == true) m_indices = std::move(_indices);
 }

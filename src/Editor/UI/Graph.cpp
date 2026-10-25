@@ -1,5 +1,5 @@
-#include <Renderer/Debug/Graph.hpp>
-using namespace Renderer;
+#include <Editor/UI/Graph.hpp>
+using namespace Editor::UI;
 
 #include <Renderer/Core.hpp>
 
